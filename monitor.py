@@ -3,7 +3,7 @@
 # based on code by henryk ploetz
 # https://hackaday.io/project/5301-reverse-engineering-a-low-cost-usb-co-monitor/log/17909-all-your-base-are-belong-to-us
 
-import os, sys, fcntl, time, yaml, socket, httplib
+import os, sys, fcntl, time, yaml, socket, httplib, json
 
 import requests
 
@@ -70,21 +70,23 @@ def notifySlack(co2, config, upper_threshold):
         print "Unexpected error:", sys.exc_info()[0]
 
 def publish(config, co2, temp):
-    httplib.HTTPConnection(config['endpoint_host'])
+    client = httplib.HTTPConnection(config['endpoint_host'])
 
     try:
-        params = {
-          'prefix': config['prefix'],
-          'token': config['token'],
+        params = { 'measurement': {
+          'identifier': config['identifier'],
           'co2': co2,
           'temp': temp
+          },
+          'token': config['token']
         }
-        headers = {}
-
-        client.request("POST", config['endpoint_path'], params, headers)
-        # response = conn.getresponse()
+        headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
+	client.request("POST", config['endpoint_path'], json.dumps(params), headers)
+        client.getresponse()
     except:
         print "Unexpected error:", sys.exc_info()[0]
+    finally:
+	client.close()
 
 def config(config_file=None):
     """Get config from file; if no config_file is passed in as argument

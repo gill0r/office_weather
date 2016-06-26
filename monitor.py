@@ -3,7 +3,7 @@
 # based on code by henryk ploetz
 # https://hackaday.io/project/5301-reverse-engineering-a-low-cost-usb-co-monitor/log/17909-all-your-base-are-belong-to-us
 
-import os, sys, fcntl, time, librato, yaml, socket
+import os, sys, fcntl, time, yaml, socket, httplib
 
 import requests
 
@@ -69,10 +69,20 @@ def notifySlack(co2, config, upper_threshold):
     except:
         print "Unexpected error:", sys.exc_info()[0]
 
-def publish(client, prefix, co2, tmp):
+def publish(config, co2, temp):
+    httplib.HTTPConnection(config['endpoint_host'])
+
     try:
-        client.submit(prefix + ".co2", co2)
-        client.submit(prefix + ".tmp", tmp)
+        params = {
+          'prefix': config['prefix'],
+          'token': config['token'],
+          'co2': co2,
+          'temp': temp
+        }
+        headers = {}
+
+        client.request("POST", config['endpoint_path'], params, headers)
+        # response = conn.getresponse()
     except:
         print "Unexpected error:", sys.exc_info()[0]
 
@@ -86,10 +96,6 @@ def config(config_file=None):
 
     with open(config_file, 'r') as stream:
         return yaml.load(stream)
-
-def client(config):
-    return librato.connect(config["user"], config["token"])
-
 
 if __name__ == "__main__":
     """main"""
@@ -118,8 +124,6 @@ if __name__ == "__main__":
     except IndexError:
         config = config()
 
-    client = client(config)
-
     while True:
         data = list(ord(e) for e in fp.read(8))
         decrypted = decrypt(key, data)
@@ -142,7 +146,7 @@ if __name__ == "__main__":
                 print "CO2: %4i TMP: %3.1f" % (co2, tmp)
                 if now() - stamp > 5:
                     print ">>>"
-                    publish(client, config["prefix"], co2, tmp)
+                    publish(config, co2, tmp)
 
                     # publish to slack, if configured
                     if ("slack" in config):
